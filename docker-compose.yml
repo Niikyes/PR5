@@ -13,10 +13,10 @@ services:
     container_name: users-service
     depends_on:
       - rabbitmq
-    ports:
-      - "8000:8000"
     environment:
       - RABBITMQ_HOST=rabbitmq
+    ports:
+      - "8000:8000"
 
   notifications_service:
     image: niikyes/notifications-service:latest
@@ -25,4 +25,5 @@ services:
       - rabbitmq
     environment:
       - RABBITMQ_HOST=rabbitmq
+
 
