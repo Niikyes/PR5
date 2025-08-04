@@ -3,7 +3,7 @@ name: Build, Push to Docker Hub & Deploy with Compose
 on:
   push:
     branches:
-      - main
+      - test
 
 jobs:
   build-and-deploy:
