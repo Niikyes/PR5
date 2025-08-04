@@ -3,7 +3,7 @@ name: Build, Push to Docker Hub & Deploy with Compose
 on:
   push:
     branches:
-      - test
+      - main
 
 jobs:
   build-and-deploy:
@@ -21,23 +21,25 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 3️⃣ Build y Push de Users Service
+      # 3️⃣ Build & Push limpio: Users Service
       - name: Build & Push Users Service
         run: |
           cd users_service
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/users-service:latest .
+          docker build --no-cache -t ${{ secrets.DOCKER_USERNAME }}/users-service:latest .
           docker push ${{ secrets.DOCKER_USERNAME }}/users-service:latest
           cd ..
 
-      # 4️⃣ Build y Push de Notifications Service
+      # 4️⃣ Build & Push limpio: Notifications Service
       - name: Build & Push Notifications Service
         run: |
           cd notifications_service
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/notifications-service:latest .
+          docker build --no-cache -t ${{ secrets.DOCKER_USERNAME }}/notifications-service:latest .
+          docker run --rm ${{ secrets.DOCKER_USERNAME }}/notifications-service:latest \
+            grep "pika.ConnectionParameters" /app/notifications_service.py
           docker push ${{ secrets.DOCKER_USERNAME }}/notifications-service:latest
           cd ..
 
-      # 5️⃣ Desplegar en EC2 con Docker Compose
+      # 5️⃣ Deploy en EC2
       - name: Deploy to EC2 with Compose
         uses: appleboy/ssh-action@v0.1.10
         with:
@@ -45,11 +47,11 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "🚀 Instalando Docker Compose si es necesario..."
-            sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-            sudo chmod +x /usr/local/bin/docker-compose
+            echo "🛑 Deteniendo y limpiando contenedores previos..."
+            sudo docker-compose down || true
+            sudo docker system prune -af || true
 
-            echo "⬇️ Creando archivo docker-compose.yml..."
+            echo "⬇️ Creando archivo docker-compose.yml actualizado..."
             cat > docker-compose.yml << 'EOF'
             version: '3.8'
             services:
@@ -77,15 +79,17 @@ jobs:
                   - RABBITMQ_HOST=rabbitmq
             EOF
 
-            echo "🛑 Deteniendo contenedores previos..."
-            sudo docker-compose down || true
-
-            echo "⬇️ Actualizando imágenes..."
+            echo "⬇️ Pull imágenes recientes..."
             sudo docker-compose pull
 
-            echo "🚀 Levantando stack..."
+            echo "🚀 Levantando microservicios..."
             sudo docker-compose up -d
 
-            echo "✅ Estado final:"
+            echo "✅ Verificando contenedores activos..."
             sudo docker ps
+
+            echo "📜 Logs de Notifications Service (5 líneas):"
+            sudo docker logs --tail 5 notifications-service || true
+
+
 
