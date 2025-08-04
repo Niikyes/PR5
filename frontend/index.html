@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
   <title>Registro de Usuario</title>
 </head>
+
 <body>
   <h2>Registrar Usuario</h2>
   <form id="registerForm">
@@ -20,8 +22,8 @@
 
       const res = await fetch("http://localhost:8000/register", {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({nombre, email})
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombre, email })
       });
 
       const data = await res.json();
@@ -29,4 +31,5 @@
     });
   </script>
 </body>
+
 </html>

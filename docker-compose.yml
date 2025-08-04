@@ -5,11 +5,13 @@ services:
     image: rabbitmq:3-management
     container_name: rabbitmq
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "5672:5672"        # Puerto de RabbitMQ
+      - "15672:15672"      # Panel de administración
 
   users_service:
-    image: niikyes/users-service:latest
+    build:
+      context: ./backend/users_service
+      dockerfile: Dockerfile
     container_name: users-service
     depends_on:
       - rabbitmq
@@ -19,11 +21,11 @@ services:
       - "8000:8000"
 
   notifications_service:
-    image: niikyes/notifications-service:latest
+    build:
+      context: ./backend/notifications_service
+      dockerfile: Dockerfile
     container_name: notifications-service
     depends_on:
       - rabbitmq
     environment:
       - RABBITMQ_HOST=rabbitmq
-
-
