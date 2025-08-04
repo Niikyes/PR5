@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Registro de Usuario</title>
+</head>
+<body>
+  <h2>Registrar Usuario</h2>
+  <form id="registerForm">
+    <input type="text" id="nombre" placeholder="Nombre" required><br><br>
+    <input type="email" id="email" placeholder="Correo" required><br><br>
+    <button type="submit">Registrar</button>
+  </form>
+  <p id="mensaje"></p>
+  <script>
+    document.getElementById("registerForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const nombre = document.getElementById("nombre").value;
+      const email = document.getElementById("email").value;
+
+      const res = await fetch("http://localhost:8000/register", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({nombre, email})
+      });
+
+      const data = await res.json();
+      document.getElementById("mensaje").innerText = data.mensaje;
+    });
+  </script>
+</body>
+</html>
