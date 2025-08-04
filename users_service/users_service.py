@@ -32,10 +32,7 @@ class User(BaseModel):
 
 @app.post("/register")
 def register_user(user: User):
-    # Simular registro de usuario
     print(f"[Users Service] Usuario registrado: {user.dict()}")
-
-    # Enviar mensaje a la cola
     channel.basic_publish(
         exchange="",
         routing_key="notifications",
@@ -43,4 +40,10 @@ def register_user(user: User):
     )
     print(f"📨 Mensaje enviado a RabbitMQ: {user.email}")
     return {"message": "Usuario registrado y notificación enviada"}
+
+# Solo para ejecución fuera de Docker (en local)
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
 

@@ -17,6 +17,8 @@ COPY users_service.py /app/
 ENV PYTHONPATH=/app/deps
 EXPOSE 8000
 
-CMD ["python", "users_service.py"]
+# Ejecutar uvicorn directamente para que el contenedor permanezca vivo
+CMD ["uvicorn", "users_service:app", "--host", "0.0.0.0", "--port", "8000"]
+
 
 
