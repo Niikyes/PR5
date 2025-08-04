@@ -3,25 +3,25 @@ name: Build & Deploy Microservices to EC2
 on:
   push:
     branches:
-      - test
+      - main
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout del código
+      # 1️⃣ Código
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2️⃣ Login en Docker Hub
+      # 2️⃣ Docker Hub login
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 3️⃣ Build & Push: Users Service
+      # 3️⃣ Build & Push Users Service
       - name: Build & Push Users Service
         run: |
           cd users_service
@@ -29,7 +29,7 @@ jobs:
           docker push ${{ secrets.DOCKER_USERNAME }}/users-service:latest
           cd ..
 
-      # 4️⃣ Build & Push: Notifications Service
+      # 4️⃣ Build & Push Notifications Service
       - name: Build & Push Notifications Service
         run: |
           cd notifications_service
@@ -37,7 +37,17 @@ jobs:
           docker push ${{ secrets.DOCKER_USERNAME }}/notifications-service:latest
           cd ..
 
-      # 5️⃣ Deploy a EC2 con Docker Compose
+      # 5️⃣ Copiar docker-compose.yml existente a EC2
+      - name: Copy Compose file to EC2
+        uses: appleboy/scp-action@v0.1.1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.yml"
+          target: "/home/ec2-user/docker-compose.yml"
+
+      # 6️⃣ Desplegar en EC2 usando el Compose copiado
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v0.1.10
         with:
@@ -45,54 +55,25 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "🛑 Limpiando contenedores e imágenes previas..."
-            sudo docker-compose down || true
-            sudo docker rm -f $(sudo docker ps -aq) || true
-            sudo docker rmi -f $(sudo docker images -q) || true
+            echo "🛑 Deteniendo y limpiando stack existente..."
+            sudo docker-compose -f docker-compose.yml down || true
             sudo docker system prune -af || true
 
-            echo "📄 Generando docker-compose.yml..."
-            cat > docker-compose.yml << 'EOF'
-            version: '3.8'
+            echo "⬇️ Pull de imágenes más recientes..."
+            sudo docker-compose -f docker-compose.yml pull
 
-            services:
-              rabbitmq:
-                image: rabbitmq:3-management
-                container_name: rabbitmq
-                ports:
-                  - "5672:5672"
-                  - "15672:15672"
-
-              users_service:
-                image: ${{ secrets.DOCKER_USERNAME }}/users-service:latest
-                container_name: users-service
-                depends_on:
-                  - rabbitmq
-                environment:
-                  - RABBITMQ_HOST=rabbitmq
-                ports:
-                  - "8000:8000"
-
-              notifications_service:
-                image: ${{ secrets.DOCKER_USERNAME }}/notifications-service:latest
-                container_name: notifications-service
-                depends_on:
-                  - rabbitmq
-                environment:
-                  - RABBITMQ_HOST=rabbitmq
-            EOF
-
-            echo "⬇️ Descargando imágenes actualizadas..."
-            sudo docker-compose pull
-
-            echo "🚀 Levantando servicios en Compose..."
-            sudo docker-compose up -d
+            echo "🚀 Levantando todo con Compose..."
+            sudo docker-compose -f docker-compose.yml up -d
 
             echo "✅ Contenedores activos:"
             sudo docker ps
 
-            echo "📜 Últimos logs de notifications-service:"
-            sudo docker logs --tail 10 notifications-service || true
+            echo "📜 Logs users-service (últimas 5 líneas):"
+            sudo docker logs --tail 5 users-service || true
+
+            echo "📜 Logs notifications-service (últimas 5 líneas):"
+            sudo docker logs --tail 5 notifications-service || true
+
 
 
 
