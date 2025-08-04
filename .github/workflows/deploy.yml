@@ -31,7 +31,7 @@ jobs:
       # 4️⃣ Construir y subir imagen Notifications Service
       - name: Build & Push Notifications Service
         run: |
-          cd ../notifications_service
+          cd notifications_service
           docker build -t ${{ secrets.DOCKER_USERNAME }}/notifications-service:latest .
           docker push ${{ secrets.DOCKER_USERNAME }}/notifications-service:latest
 
