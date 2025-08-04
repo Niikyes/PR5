@@ -3,14 +3,14 @@ name: Build & Deploy Microservices to EC2
 on:
   push:
     branches:
-      - test
+      - test    # Asegúrate de hacer git push origin test
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Código
+      # 1️⃣ Checkout
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -37,17 +37,18 @@ jobs:
           docker push ${{ secrets.DOCKER_USERNAME }}/notifications-service:latest
           cd ..
 
-      # 5️⃣ Copiar docker-compose.yml existente a EC2
-      - name: Copy Compose file to EC2
-        uses: appleboy/scp-action@v0.1.1
+      # 5️⃣ Copiar docker-compose.yml
+      - name: Copy docker-compose.yml to EC2
+        uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
+          port: 22
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "docker-compose.yml"
           target: "/home/ec2-user/docker-compose.yml"
 
-      # 6️⃣ Desplegar en EC2 usando el Compose copiado
+      # 6️⃣ Deploy utilizando el Compose copiado
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v0.1.10
         with:
@@ -55,15 +56,17 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "🛑 Deteniendo y limpiando stack existente..."
-            sudo docker-compose -f docker-compose.yml down || true
+            echo "🛑 Deteniendo stack previo..."
+            sudo docker-compose -f /home/ec2-user/docker-compose.yml down || true
+
+            echo "🧹 Limpiando contenedores e imágenes huérfanas..."
             sudo docker system prune -af || true
 
-            echo "⬇️ Pull de imágenes más recientes..."
-            sudo docker-compose -f docker-compose.yml pull
+            echo "⬇️ Pull de nuevas imágenes..."
+            sudo docker-compose -f /home/ec2-user/docker-compose.yml pull
 
-            echo "🚀 Levantando todo con Compose..."
-            sudo docker-compose -f docker-compose.yml up -d
+            echo "🚀 Levantando servicios..."
+            sudo docker-compose -f /home/ec2-user/docker-compose.yml up -d
 
             echo "✅ Contenedores activos:"
             sudo docker ps
@@ -73,6 +76,7 @@ jobs:
 
             echo "📜 Logs notifications-service (últimas 5 líneas):"
             sudo docker logs --tail 5 notifications-service || true
+
 
 
 
