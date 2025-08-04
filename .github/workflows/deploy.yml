@@ -1,16 +1,16 @@
-name: Build, Push to Docker Hub & Deploy to EC2
+name: Build, Push to Docker Hub & Deploy with Compose
 
 on:
   push:
     branches:
-      - test  # Se ejecuta en cada push a main
+      - main
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Clonar repo temporalmente en el runner
+      # 1️⃣ Checkout del repo
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -21,43 +21,71 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 3️⃣ Construir y subir imagen Users Service (multi-stage optimizado)
+      # 3️⃣ Build y Push de Users Service
       - name: Build & Push Users Service
         run: |
           cd users_service
           docker build -t ${{ secrets.DOCKER_USERNAME }}/users-service:latest .
           docker push ${{ secrets.DOCKER_USERNAME }}/users-service:latest
+          cd ..
 
-      # 4️⃣ Construir y subir imagen Notifications Service
+      # 4️⃣ Build y Push de Notifications Service
       - name: Build & Push Notifications Service
         run: |
           cd notifications_service
           docker build -t ${{ secrets.DOCKER_USERNAME }}/notifications-service:latest .
           docker push ${{ secrets.DOCKER_USERNAME }}/notifications-service:latest
+          cd ..
 
-      # 5️⃣ Desplegar en EC2 automáticamente
-      - name: Deploy to EC2
+      # 5️⃣ Desplegar en EC2 con Docker Compose
+      - name: Deploy to EC2 with Compose
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "🚀 Deteniendo contenedores antiguos (si existen)..."
-            sudo docker stop users-service notifications-service || true
-            sudo docker rm users-service notifications-service || true
+            echo "🚀 Instalando Docker Compose si es necesario..."
+            sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
 
-            echo "🧹 Limpiando imágenes antiguas (si existen)..."
-            sudo docker rmi $(sudo docker images -q ${{ secrets.DOCKER_USERNAME }}/users-service) || true
-            sudo docker rmi $(sudo docker images -q ${{ secrets.DOCKER_USERNAME }}/notifications-service) || true
+            echo "⬇️ Creando archivo docker-compose.yml..."
+            cat > docker-compose.yml << 'EOF'
+            version: '3.8'
+            services:
+              rabbitmq:
+                image: rabbitmq:3-management
+                container_name: rabbitmq
+                ports:
+                  - "5672:5672"
+                  - "15672:15672"
+              users_service:
+                image: ${{ secrets.DOCKER_USERNAME }}/users-service:latest
+                container_name: users-service
+                depends_on:
+                  - rabbitmq
+                ports:
+                  - "8000:8000"
+                environment:
+                  - RABBITMQ_HOST=rabbitmq
+              notifications_service:
+                image: ${{ secrets.DOCKER_USERNAME }}/notifications-service:latest
+                container_name: notifications-service
+                depends_on:
+                  - rabbitmq
+                environment:
+                  - RABBITMQ_HOST=rabbitmq
+            EOF
 
-            echo "⬇️ Descargando últimas imágenes desde Docker Hub..."
-            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/users-service:latest
-            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/notifications-service:latest
+            echo "🛑 Deteniendo contenedores previos..."
+            sudo docker-compose down || true
 
-            echo "🔄 Iniciando contenedores como root..."
-            sudo docker run -d -p 8000:8000 --restart always --name users-service ${{ secrets.DOCKER_USERNAME }}/users-service:latest || echo "❌ Falló levantar users-service"
-            sudo docker run -d --restart always --name notifications-service ${{ secrets.DOCKER_USERNAME }}/notifications-service:latest || echo "❌ Falló levantar notifications-service"
+            echo "⬇️ Actualizando imágenes..."
+            sudo docker-compose pull
 
-            echo "✅ Estado final de los contenedores:"
-            sudo docker ps -a
+            echo "🚀 Levantando stack..."
+            sudo docker-compose up -d
+
+            echo "✅ Estado final:"
+            sudo docker ps
+

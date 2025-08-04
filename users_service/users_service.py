@@ -1,29 +1,35 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware  # <-- ESTE IMPORT ES NECESARIO
 import pika
+import os
 import json
+import time
 
 app = FastAPI()
 
-# Habilitar CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Permitir todos los orígenes (en pruebas)
-    allow_credentials=True,
-    allow_methods=["*"],  # Permitir todos los métodos (POST, GET, etc.)
-    allow_headers=["*"],  # Permitir todas las cabeceras
-)
+# Obtener host de RabbitMQ desde variable de entorno
+rabbit_host = os.getenv("RABBITMQ_HOST", "rabbitmq")
 
-# Conexión a RabbitMQ
-def publish_event(event_data):
-    connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
-    channel = connection.channel()
-    channel.queue_declare(queue="eventos")
-    channel.basic_publish(exchange="", routing_key="eventos", body=json.dumps(event_data))
-    connection.close()
+# Conexión con reintentos
+def get_connection():
+    for attempt in range(5):
+        try:
+            connection = pika.BlockingConnection(pika.ConnectionParameters(rabbit_host))
+            return connection
+        except pika.exceptions.AMQPConnectionError:
+            print(f"Intento {attempt+1}/5: RabbitMQ no está disponible, reintentando...")
+            time.sleep(5)
+    raise Exception("No se pudo conectar con RabbitMQ después de 5 intentos")
 
 @app.post("/register")
 def register_user(user: dict):
+    connection = get_connection()
+    channel = connection.channel()
+    channel.queue_declare(queue="notifications")
+    channel.basic_publish(
+        exchange="",
+        routing_key="notifications",
+        body=json.dumps(user)
+    )
+    connection.close()
     print(f"[Users Service] Usuario registrado: {user}")
-    publish_event({"tipo": "nuevo_usuario", "datos": user})
-    return {"mensaje": "Usuario registrado con éxito"}
+    return {"message": "Usuario registrado y evento enviado a RabbitMQ"}
