@@ -1,17 +1,23 @@
-version: '3.8'
+version: "3.8"
+
+networks:
+  pr5_network:
+    driver: bridge
 
 services:
+  # 🐇 RabbitMQ
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
     ports:
-      - "5672:5672"        # Puerto de RabbitMQ
-      - "15672:15672"      # Panel de administración
+      - "5672:5672"    # Puerto interno de RabbitMQ
+      - "15672:15672"  # Consola web de administración
+    networks:
+      - pr5_network
 
+  # 👤 Users Service (desde Docker Hub)
   users_service:
-    build:
-      context: ./backend/users_service
-      dockerfile: Dockerfile
+    image: niikyes/users-service:latest
     container_name: users-service
     depends_on:
       - rabbitmq
@@ -19,13 +25,73 @@ services:
       - RABBITMQ_HOST=rabbitmq
     ports:
       - "8000:8000"
+    networks:
+      - pr5_network
 
+  # 🔔 Notifications Service (desde Docker Hub)
   notifications_service:
-    build:
-      context: ./backend/notifications_service
-      dockerfile: Dockerfile
+    image: niikyes/notifications-service:latest
     container_name: notifications-service
     depends_on:
       - rabbitmq
     environment:
       - RABBITMQ_HOST=rabbitmq
+    networks:
+      - pr5_network
+
+  # 🌐 Frontend (HTML servido en Nginx)
+  frontend:
+    image: niikyes/frontend:latest
+    container_name: frontend_app
+    ports:
+      - "80:80"
+    networks:
+      - pr5_network
+
+  # 📊 Prometheus (Métricas centralizadas)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - pr5_network
+
+  # 🖥️ Node Exporter (Métricas del host)
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: node_exporter
+    ports:
+      - "9100:9100"
+    networks:
+      - pr5_network
+
+  # 📦 cAdvisor (Monitoreo de contenedores Docker)
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    ports:
+      - "8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - pr5_network
+
+  # 📉 Grafana (Visualización de métricas)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    networks:
+      - pr5_network
+
+  

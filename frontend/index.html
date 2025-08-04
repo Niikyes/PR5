@@ -13,10 +13,20 @@
     <input type="email" id="email" placeholder="Correo" required><br><br>
     <button type="submit">Registrar</button>
   </form>
+
   <p id="mensaje"></p>
+
+  <h3>Usuarios registrados en esta sesión:</h3>
+  <ul id="listaUsuarios"></ul>
+
   <script>
-    document.getElementById("registerForm").addEventListener("submit", async (e) => {
+    const form = document.getElementById("registerForm");
+    const mensaje = document.getElementById("mensaje");
+    const listaUsuarios = document.getElementById("listaUsuarios");
+
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
+
       const nombre = document.getElementById("nombre").value;
       const email = document.getElementById("email").value;
 
@@ -27,7 +37,18 @@
       });
 
       const data = await res.json();
-      document.getElementById("mensaje").innerText = data.mensaje;
+      mensaje.innerText = data.message;
+
+      // Update list users
+      listaUsuarios.innerHTML = "";
+      data.usuarios.forEach(u => {
+        const li = document.createElement("li");
+        li.innerText = `${u.nombre} - ${u.email}`;
+        listaUsuarios.appendChild(li);
+      });
+
+      // clean form
+      form.reset();
     });
   </script>
 </body>
