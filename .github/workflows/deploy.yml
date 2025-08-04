@@ -37,7 +37,7 @@ jobs:
           docker push ${{ secrets.DOCKER_USERNAME }}/notifications-service:latest
           cd ..
 
-      # 5️⃣ Copiar docker-compose.yml
+      # 5️⃣ Copiar docker-compose.yml a EC2 (target = directorio)
       - name: Copy docker-compose.yml to EC2
         uses: appleboy/scp-action@v1.0.0
         with:
@@ -46,9 +46,10 @@ jobs:
           port: 22
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "docker-compose.yml"
-          target: "/home/ec2-user/docker-compose.yml"
+          target: "/home/ec2-user/"    # <-- Directorio, no fichero
 
-      # 6️⃣ Deploy utilizando el Compose copiado
+
+            # 6️⃣ Desplegar en EC2 usando el Compose copiado
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v0.1.10
         with:
