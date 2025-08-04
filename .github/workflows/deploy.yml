@@ -55,9 +55,9 @@ jobs:
             sudo docker pull ${{ secrets.DOCKER_USERNAME }}/users-service:latest
             sudo docker pull ${{ secrets.DOCKER_USERNAME }}/notifications-service:latest
 
-            echo "🔄 Iniciando contenedores..."
-            sudo docker run -d -p 8000:8000 --name users-service ${{ secrets.DOCKER_USERNAME }}/users-service:latest
-            sudo docker run -d --name notifications-service ${{ secrets.DOCKER_USERNAME }}/notifications-service:latest
+            echo "🔄 Iniciando contenedores como root..."
+            sudo docker run -d -p 8000:8000 --restart always --name users-service ${{ secrets.DOCKER_USERNAME }}/users-service:latest || echo "❌ Falló levantar users-service"
+            sudo docker run -d --restart always --name notifications-service ${{ secrets.DOCKER_USERNAME }}/notifications-service:latest || echo "❌ Falló levantar notifications-service"
 
-            echo "✅ Despliegue completado con éxito en EC2."
-            sudo docker ps
+            echo "✅ Estado final de los contenedores:"
+            sudo docker ps -a
